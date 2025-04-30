@@ -8,7 +8,7 @@
 
 @layer base {
   body {
-    @apply bg-gray-900 text-white;
+    @apply bg-black text-white;
   }
 }
 
@@ -32,13 +32,13 @@
 
 /* Emoji picker customization */
 .emoji-picker-react {
-  --epr-bg-color: #1f2937 !important;
-  --epr-category-label-bg-color: #374151 !important;
-  --epr-text-color: #f3f4f6 !important;
-  --epr-hover-bg-color: #4b5563 !important;
-  --epr-search-input-bg-color: #374151 !important;
-  --epr-search-input-border-color: #4b5563 !important;
-  --epr-category-label-text-color: #d1d5db !important;
-  border-color: #4b5563 !important;
+  --epr-bg-color: #18181b !important;
+  --epr-category-label-bg-color: #27272a !important;
+  --epr-text-color: #e4e4e7 !important;
+  --epr-hover-bg-color: #3f3f46 !important;
+  --epr-search-input-bg-color: #27272a !important;
+  --epr-search-input-border-color: #3f3f46 !important;
+  --epr-category-label-text-color: #a1a1aa !important;
+  border-color: #3f3f46 !important;
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.5) !important;
 }
