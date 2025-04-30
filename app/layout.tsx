@@ -7,8 +7,8 @@ import { ThemeProvider } from "@/components/theme-provider"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Crypto Chat | Professional Messaging Platform",
-  description: "A professional real-time chat application for crypto communities",
+  title: "Crypto Chat",
+  description: "A real-time chat application for crypto communities",
     generator: 'v0.dev'
 }
 
