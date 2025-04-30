@@ -2,154 +2,98 @@
 
 import type React from "react"
 
-import { useEffect, useState } from "react"
-import io from "socket.io-client"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Separator } from "@/components/ui/separator"
-import { MessageCircle, Send, LogIn } from "lucide-react"
+import { Card, CardContent } from "@/components/ui/card"
+import Image from "next/image"
+import Link from "next/link"
 
-// Initialize socket connection
-const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:3000")
+export default function HomePage() {
+  const [contract, setContract] = useState("")
 
-export default function ChatApp() {
-  const [coinAddress, setCoinAddress] = useState("")
-  const [joined, setJoined] = useState(false)
-  const [chat, setChat] = useState<string[]>([])
-  const [message, setMessage] = useState("")
-  const [connecting, setConnecting] = useState(false)
-  const [sending, setSending] = useState(false)
-
-  // Listen for incoming messages
-  useEffect(() => {
-    socket.on("message", (msg) => {
-      setChat((prev) => [...prev, msg])
-    })
-
-    return () => {
-      socket.off("message")
-    }
-  }, [])
-
-  // Auto-scroll to bottom when new messages arrive
-  useEffect(() => {
-    const scrollArea = document.getElementById("message-container")
-    if (scrollArea) {
-      scrollArea.scrollTop = scrollArea.scrollHeight
-    }
-  }, [chat])
-
-  const joinRoom = () => {
-    if (coinAddress.trim() !== "") {
-      setConnecting(true)
-      socket.emit("join", coinAddress)
-      setJoined(true)
-      setChat([])
-      setConnecting(false)
-    }
-  }
-
-  const sendMessage = () => {
-    if (message.trim() !== "") {
-      setSending(true)
-      socket.emit("message", { room: coinAddress, text: message })
-      setMessage("")
-      setSending(false)
+  const handleStartChat = () => {
+    if (contract) {
+      window.location.href = `/chat/${contract}`
     }
   }
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      if (!joined) {
-        joinRoom()
-      } else {
-        sendMessage()
-      }
+    if (e.key === "Enter" && contract) {
+      handleStartChat()
     }
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-emerald-50 to-white p-4">
-      <Card className="w-full max-w-md shadow-lg">
-        <CardHeader className="bg-emerald-500 text-white rounded-t-lg">
-          <div className="flex items-center gap-2">
-            <MessageCircle className="h-6 w-6" />
-            <CardTitle>Crypto Chat</CardTitle>
-          </div>
-          <CardDescription className="text-emerald-50">
-            {joined ? `Connected to ${coinAddress}` : "Join a coin-specific chatroom"}
-          </CardDescription>
-        </CardHeader>
+    <div className="min-h-screen bg-gray-900 text-white">
+      <header className="flex items-center justify-between px-8 py-6 bg-gray-800 shadow-md sticky top-0 z-50">
+        <div className="flex items-center space-x-3">
+          <Image src="/assets/LoquiLogo.png" alt="Loqui Logo" width={40} height={40} />
+          <h1 className="text-2xl font-bold text-red-500">Loqui</h1>
+        </div>
+        <nav className="space-x-4">
+          <Link href="/about" className="text-gray-300 hover:text-red-400">
+            About
+          </Link>
+        </nav>
+      </header>
 
-        {!joined ? (
-          <CardContent className="p-6">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label htmlFor="coin-address" className="text-sm font-medium">
-                  Coin Address
-                </label>
-                <Input
-                  id="coin-address"
-                  placeholder="Enter coin address (e.g., BTC, ETH, SOL)"
-                  value={coinAddress}
-                  onChange={(e) => setCoinAddress(e.target.value)}
-                  onKeyDown={handleKeyPress}
-                  className="focus-visible:ring-emerald-500"
-                />
-              </div>
-              <Button
-                onClick={joinRoom}
-                className="w-full bg-emerald-500 hover:bg-emerald-600"
-                disabled={connecting || coinAddress.trim() === ""}
-              >
-                <LogIn className="mr-2 h-4 w-4" />
-                {connecting ? "Connecting..." : "Join Chatroom"}
-              </Button>
-            </div>
-          </CardContent>
-        ) : (
-          <>
-            <CardContent className="p-0">
-              <ScrollArea id="message-container" className="h-[350px] p-4">
-                {chat.length === 0 ? (
-                  <div className="flex items-center justify-center h-full text-gray-400">
-                    No messages yet. Start the conversation!
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {chat.map((msg, i) => (
-                      <div key={i} className="p-3 bg-gray-100 rounded-lg">
-                        {msg}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </ScrollArea>
-              <Separator />
+      <main className="flex flex-col items-center justify-center px-4 py-20">
+        <h2 className="text-4xl font-bold mb-4 text-center">Join the Conversation by Contract</h2>
+        <p className="text-lg text-center max-w-2xl mb-8 text-gray-300">
+          Enter any Solana-compatible contract address and start chatting with fellow holders, traders, and developers.
+        </p>
+        <div className="flex space-x-2 w-full max-w-xl">
+          <Input
+            placeholder="Enter Contract Address..."
+            value={contract}
+            onChange={(e) => setContract(e.target.value)}
+            onKeyDown={handleKeyPress}
+            className="flex-1 bg-gray-800 text-white border border-gray-700"
+          />
+          <Button
+            onClick={handleStartChat}
+            className="bg-red-600 hover:bg-red-700 text-white"
+            disabled={!contract.trim()}
+          >
+            Start Chat
+          </Button>
+        </div>
+
+        <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8">
+          <Card className="bg-gray-800 border border-gray-700">
+            <CardContent className="p-6 text-center">
+              <h3 className="text-xl font-semibold mb-2 text-red-400">🔒 Secure & Private</h3>
+              <p className="text-gray-300">End-to-end encrypted chat with no stored user data.</p>
             </CardContent>
-            <CardFooter className="p-3">
-              <div className="flex w-full gap-2">
-                <Input
-                  placeholder="Type your message..."
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  onKeyDown={handleKeyPress}
-                  className="focus-visible:ring-emerald-500"
-                />
-                <Button
-                  onClick={sendMessage}
-                  className="bg-emerald-500 hover:bg-emerald-600"
-                  disabled={sending || message.trim() === ""}
-                >
-                  <Send className="h-4 w-4" />
-                </Button>
-              </div>
-            </CardFooter>
-          </>
-        )}
-      </Card>
+          </Card>
+          <Card className="bg-gray-800 border border-gray-700">
+            <CardContent className="p-6 text-center">
+              <h3 className="text-xl font-semibold mb-2 text-red-400">🧠 Community-Driven</h3>
+              <p className="text-gray-300">Talk directly with people engaged in the same contracts.</p>
+            </CardContent>
+          </Card>
+          <Card className="bg-gray-800 border border-gray-700">
+            <CardContent className="p-6 text-center">
+              <h3 className="text-xl font-semibold mb-2 text-red-400">⚡ Fast & Scalable</h3>
+              <p className="text-gray-300">Real-time messaging powered by modern web tech.</p>
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+
+      <footer className="bg-gray-800 border-t border-gray-700 py-6 text-center text-sm text-gray-500">
+        <p>
+          Built with ❤️ by the Loqui team! •{" "}
+          <a href="#" className="hover:underline">
+            Privacy
+          </a>{" "}
+          •{" "}
+          <a href="#" className="hover:underline">
+            Terms
+          </a>
+        </p>
+      </footer>
     </div>
   )
 }
