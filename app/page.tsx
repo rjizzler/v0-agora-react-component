@@ -4,50 +4,34 @@ import type React from "react"
 
 import { useEffect, useState, useRef } from "react"
 import io from "socket.io-client"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Separator } from "@/components/ui/separator"
-import { MessageCircle, Send, LogIn, RefreshCw, User } from "lucide-react"
 import { generateRandomUsername } from "@/lib/username-utils"
 
-// Initialize socket connection
 const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:3000")
 
-// Define message type
 interface Message {
+  user: string
   text: string
-  username: string
   timestamp: number
 }
 
 export default function ChatApp() {
-  const [username, setUsername] = useState("")
   const [coinAddress, setCoinAddress] = useState("")
+  const [username, setUsername] = useState("")
   const [joined, setJoined] = useState(false)
   const [chat, setChat] = useState<Message[]>([])
   const [message, setMessage] = useState("")
   const [connecting, setConnecting] = useState(false)
-  const [sending, setSending] = useState(false)
-  const scrollAreaRef = useRef<HTMLDivElement>(null)
+  const chatBoxRef = useRef<HTMLDivElement>(null)
 
-  // Generate a random username on initial load
+  // Generate random username on component mount
   useEffect(() => {
     setUsername(generateRandomUsername())
   }, [])
 
   // Listen for incoming messages
   useEffect(() => {
-    socket.on("message", (msg: { text: string; username: string }) => {
-      setChat((prev) => [
-        ...prev,
-        {
-          text: msg.text,
-          username: msg.username,
-          timestamp: Date.now(),
-        },
-      ])
+    socket.on("message", (msg: Message) => {
+      setChat((prev) => [...prev, msg])
     })
 
     return () => {
@@ -57,17 +41,13 @@ export default function ChatApp() {
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
-    if (scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight
+    if (chatBoxRef.current) {
+      chatBoxRef.current.scrollTop = chatBoxRef.current.scrollHeight
     }
   }, [chat])
 
-  const generateNewRandomUsername = () => {
-    setUsername(generateRandomUsername())
-  }
-
   const joinRoom = () => {
-    if (coinAddress.trim() !== "") {
+    if (coinAddress.trim() && username.trim()) {
       setConnecting(true)
       socket.emit("join", { room: coinAddress, username })
       setJoined(true)
@@ -77,27 +57,27 @@ export default function ChatApp() {
   }
 
   const sendMessage = () => {
-    if (message.trim() !== "") {
-      setSending(true)
+    if (message.trim()) {
       const messageData = {
         room: coinAddress,
+        user: username,
         text: message,
-        username,
+        timestamp: Date.now(),
       }
+
       socket.emit("message", messageData)
 
-      // Add the message to the chat immediately for better UX
+      // Add message to chat immediately for better UX
       setChat((prev) => [
         ...prev,
         {
+          user: username,
           text: message,
-          username,
           timestamp: Date.now(),
         },
       ])
 
       setMessage("")
-      setTimeout(() => setSending(false), 300) // Add slight delay for better UX
     }
   }
 
@@ -111,120 +91,129 @@ export default function ChatApp() {
     }
   }
 
-  // Format timestamp for display
-  const formatTime = (timestamp: number) => {
-    const date = new Date(timestamp)
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-  }
-
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-emerald-50 to-white p-4">
-      <Card className="w-full max-w-md shadow-lg">
-        <CardHeader className="bg-emerald-500 text-white rounded-t-lg">
-          <div className="flex items-center gap-2">
-            <MessageCircle className="h-6 w-6" />
-            <CardTitle>Crypto Chat</CardTitle>
-          </div>
-          <CardDescription className="text-emerald-50">
-            {joined ? `Connected to ${coinAddress} as ${username}` : "Join a coin-specific chatroom"}
-          </CardDescription>
-        </CardHeader>
-
-        {!joined ? (
-          <CardContent className="p-6">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label htmlFor="username" className="text-sm font-medium flex items-center gap-2">
-                  <User className="h-4 w-4 text-emerald-500" />
-                  Your Display Name
-                </label>
-                <div className="flex gap-2">
-                  <Input
-                    id="username"
-                    placeholder="Your display name"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    className="focus-visible:ring-emerald-500"
-                  />
-                  <Button
-                    onClick={generateNewRandomUsername}
-                    variant="outline"
-                    className="border-gray-200 hover:bg-gray-50"
-                    title="Generate random name"
-                  >
-                    <RefreshCw className="h-4 w-4" />
-                  </Button>
+    <div
+      style={{
+        backgroundColor: "#0d0d0d",
+        color: "#f44336",
+        minHeight: "100vh",
+        padding: "40px",
+        fontFamily: "Segoe UI, sans-serif",
+      }}
+    >
+      <h1 style={{ color: "#f44336", fontSize: "32px", marginBottom: "20px" }}>Loqui</h1>
+      {!joined ? (
+        <div style={{ maxWidth: "400px" }}>
+          <h2 style={{ marginBottom: "15px" }}>Join a Chatroom</h2>
+          <input
+            type="text"
+            placeholder="Enter username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            onKeyDown={handleKeyPress}
+            style={inputStyle}
+          />
+          <input
+            type="text"
+            placeholder="Enter coin address"
+            value={coinAddress}
+            onChange={(e) => setCoinAddress(e.target.value)}
+            onKeyDown={handleKeyPress}
+            style={inputStyle}
+          />
+          <button
+            onClick={joinRoom}
+            style={buttonStyle}
+            disabled={connecting || !username.trim() || !coinAddress.trim()}
+          >
+            {connecting ? "Connecting..." : "Join"}
+          </button>
+        </div>
+      ) : (
+        <>
+          <h2 style={{ marginBottom: "15px" }}>Chat for: {coinAddress}</h2>
+          <div ref={chatBoxRef} style={chatBoxStyle}>
+            {chat.length === 0 ? (
+              <div style={{ textAlign: "center", color: "#666", padding: "20px" }}>
+                No messages yet. Start the conversation!
+              </div>
+            ) : (
+              chat.map((msg, i) => (
+                <div key={i} style={messageStyle}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+                    <strong style={{ color: "#ff6b6b" }}>{msg.user || "Anon"}</strong>
+                    {msg.timestamp && (
+                      <span style={{ fontSize: "12px", color: "#666" }}>
+                        {new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    )}
+                  </div>
+                  <div>{msg.text}</div>
                 </div>
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="coin-address" className="text-sm font-medium">
-                  Coin Address
-                </label>
-                <Input
-                  id="coin-address"
-                  placeholder="Enter coin address (e.g., BTC, ETH, SOL)"
-                  value={coinAddress}
-                  onChange={(e) => setCoinAddress(e.target.value)}
-                  onKeyDown={handleKeyPress}
-                  className="focus-visible:ring-emerald-500"
-                />
-              </div>
-              <Button
-                onClick={joinRoom}
-                className="w-full bg-emerald-500 hover:bg-emerald-600"
-                disabled={connecting || coinAddress.trim() === "" || username.trim() === ""}
-              >
-                <LogIn className="mr-2 h-4 w-4" />
-                {connecting ? "Connecting..." : "Join Chatroom"}
-              </Button>
-            </div>
-          </CardContent>
-        ) : (
-          <>
-            <CardContent className="p-0">
-              <ScrollArea ref={scrollAreaRef} className="h-[350px] p-4">
-                {chat.length === 0 ? (
-                  <div className="flex items-center justify-center h-full text-gray-400">
-                    No messages yet. Start the conversation!
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {chat.map((msg, i) => (
-                      <div key={i} className="p-3 bg-gray-100 rounded-lg">
-                        <div className="flex justify-between items-center mb-1">
-                          <span className="font-medium text-emerald-600">{msg.username}</span>
-                          <span className="text-xs text-gray-500">{formatTime(msg.timestamp)}</span>
-                        </div>
-                        <p className="text-gray-800">{msg.text}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </ScrollArea>
-              <Separator />
-            </CardContent>
-            <CardFooter className="p-3">
-              <div className="flex w-full gap-2">
-                <Input
-                  placeholder="Type your message..."
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  onKeyDown={handleKeyPress}
-                  className="focus-visible:ring-emerald-500"
-                />
-                <Button
-                  onClick={sendMessage}
-                  className="bg-emerald-500 hover:bg-emerald-600"
-                  disabled={sending || message.trim() === ""}
-                >
-                  <Send className="h-4 w-4" />
-                </Button>
-              </div>
-            </CardFooter>
-          </>
-        )}
-      </Card>
+              ))
+            )}
+          </div>
+          <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
+            <input
+              type="text"
+              placeholder="Type a message..."
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyDown={handleKeyPress}
+              style={{ ...inputStyle, flexGrow: 1 }}
+            />
+            <button onClick={sendMessage} style={buttonStyle} disabled={!message.trim()}>
+              Send
+            </button>
+          </div>
+        </>
+      )}
     </div>
   )
+}
+
+const inputStyle = {
+  padding: "10px",
+  margin: "10px 10px 10px 0",
+  borderRadius: "4px",
+  border: "1px solid #f44336",
+  backgroundColor: "#1a1a1a",
+  color: "white",
+  width: "300px",
+}
+
+const buttonStyle = {
+  padding: "10px 20px",
+  backgroundColor: "#f44336",
+  color: "#fff",
+  border: "none",
+  borderRadius: "4px",
+  cursor: "pointer",
+  transition: "background-color 0.2s",
+  ":hover": {
+    backgroundColor: "#d32f2f",
+  },
+  ":disabled": {
+    backgroundColor: "#7d2a2a",
+    cursor: "not-allowed",
+  },
+}
+
+const chatBoxStyle = {
+  border: "1px solid #f44336",
+  padding: "15px",
+  height: "400px",
+  overflowY: "scroll" as const,
+  backgroundColor: "#1a1a1a",
+  marginBottom: "20px",
+  borderRadius: "4px",
+}
+
+const messageStyle = {
+  marginBottom: "16px",
+  padding: "10px",
+  lineHeight: "1.5",
+  wordBreak: "break-word" as const,
+  backgroundColor: "#262626",
+  borderRadius: "4px",
 }

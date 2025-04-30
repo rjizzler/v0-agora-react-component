@@ -20,6 +20,11 @@ const adjectives = [
   "Witty",
   "Zesty",
   "Bright",
+  "Crypto",
+  "Digital",
+  "Token",
+  "Block",
+  "Chain",
 ]
 
 // List of crypto-related nouns for username generation
