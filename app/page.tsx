@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import Image from "next/image"
-import Link from "next/link"
 
 export default function HomePage() {
   const [contract, setContract] = useState("")
@@ -32,16 +31,17 @@ export default function HomePage() {
           <h1 className="text-2xl font-bold text-red-500">Loqui</h1>
         </div>
         <nav className="space-x-4">
-          <Link href="/about" className="text-gray-300 hover:text-red-400">
+          <a href="#" className="text-gray-300 hover:text-red-400">
             About
-          </Link>
+          </a>
         </nav>
       </header>
 
       <main className="flex flex-col items-center justify-center px-4 py-20">
         <h2 className="text-4xl font-bold mb-4 text-center">Join the Conversation by Contract</h2>
         <p className="text-lg text-center max-w-2xl mb-8 text-gray-300">
-          Enter any Solana-compatible contract address and start chatting with fellow holders, traders, and developers.
+          Enter any Ethereum-compatible contract address and start chatting with fellow holders, traders, and
+          developers.
         </p>
         <div className="flex space-x-2 w-full max-w-xl">
           <Input
@@ -84,7 +84,7 @@ export default function HomePage() {
 
       <footer className="bg-gray-800 border-t border-gray-700 py-6 text-center text-sm text-gray-500">
         <p>
-          Built with ❤️ by the Loqui team! •{" "}
+          Built by the Loqui Team! •{" "}
           <a href="#" className="hover:underline">
             Privacy
           </a>{" "}

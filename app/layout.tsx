@@ -8,7 +8,7 @@ const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   title: "Loqui | Chat by Contract",
-  description: "A real-time chat platform for Solana contract communities",
+  description: "A real-time chat platform for Ethereum contract communities",
     generator: 'v0.dev'
 }
 
