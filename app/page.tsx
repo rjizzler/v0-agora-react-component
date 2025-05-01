@@ -12,8 +12,13 @@ import { Separator } from "@/components/ui/separator"
 import { MessageCircle, Send, LogIn, Users } from "lucide-react"
 import { generateRandomUsername } from "@/lib/username-utils"
 
-// Initialize socket connection
-const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:3000")
+// Initialize socket connection with explicit configuration
+const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:3000", {
+  transports: ["websocket", "polling"],
+  reconnectionAttempts: 5,
+  reconnectionDelay: 1000,
+  autoConnect: true,
+})
 
 // Define message type
 interface Message {
@@ -31,6 +36,7 @@ export default function ChatApp() {
   const [connecting, setConnecting] = useState(false)
   const [sending, setSending] = useState(false)
   const [activeUsers, setActiveUsers] = useState<number>(0)
+  const [connectionStatus, setConnectionStatus] = useState<string>("disconnected")
   const scrollAreaRef = useRef<HTMLDivElement>(null)
 
   // Generate a random username on initial load
@@ -40,27 +46,67 @@ export default function ChatApp() {
     console.log("Generated username:", randomUsername)
   }, [])
 
+  // Handle socket connection events
+  useEffect(() => {
+    function onConnect() {
+      console.log("Socket connected:", socket.id)
+      setConnectionStatus("connected")
+    }
+
+    function onDisconnect() {
+      console.log("Socket disconnected")
+      setConnectionStatus("disconnected")
+    }
+
+    function onConnectError(err: Error) {
+      console.error("Connection error:", err)
+      setConnectionStatus(`error: ${err.message}`)
+    }
+
+    socket.on("connect", onConnect)
+    socket.on("disconnect", onDisconnect)
+    socket.on("connect_error", onConnectError)
+
+    // Force reconnect if not connected
+    if (!socket.connected) {
+      socket.connect()
+    }
+
+    return () => {
+      socket.off("connect", onConnect)
+      socket.off("disconnect", onDisconnect)
+      socket.off("connect_error", onConnectError)
+    }
+  }, [])
+
   // Listen for incoming messages and room events
   useEffect(() => {
     // Handle incoming messages
-    socket.on("message", (msg: Message) => {
+    function onMessage(msg: Message) {
+      console.log("Received message:", msg)
       setChat((prev) => [...prev, msg])
-    })
+    }
 
     // Handle room user count updates
-    socket.on("roomUserCount", (count: number) => {
+    function onRoomUserCount(count: number) {
+      console.log("Room user count:", count)
       setActiveUsers(count)
-    })
+    }
 
     // Handle existing messages when joining a room
-    socket.on("roomHistory", (messages: Message[]) => {
+    function onRoomHistory(messages: Message[]) {
+      console.log("Received room history:", messages)
       setChat(messages)
-    })
+    }
+
+    socket.on("message", onMessage)
+    socket.on("roomUserCount", onRoomUserCount)
+    socket.on("roomHistory", onRoomHistory)
 
     return () => {
-      socket.off("message")
-      socket.off("roomUserCount")
-      socket.off("roomHistory")
+      socket.off("message", onMessage)
+      socket.off("roomUserCount", onRoomUserCount)
+      socket.off("roomHistory", onRoomHistory)
     }
   }, [])
 
@@ -76,9 +122,14 @@ export default function ChatApp() {
     if (coinAddress.trim() !== "") {
       setConnecting(true)
 
+      // Normalize the coin address to lowercase and trim whitespace
+      const normalizedCA = coinAddress.toLowerCase().trim()
+
+      console.log(`Joining room: ${normalizedCA} as ${username}`)
+
       // Emit join event with username and room (CA)
       socket.emit("join", {
-        room: coinAddress.toLowerCase().trim(), // Normalize CA to avoid duplicate rooms
+        room: normalizedCA,
         username: username,
       })
 
@@ -95,24 +146,21 @@ export default function ChatApp() {
     if (message.trim() !== "") {
       setSending(true)
 
+      // Normalize the coin address
+      const normalizedCA = coinAddress.toLowerCase().trim()
+
       const messageData = {
-        room: coinAddress.toLowerCase().trim(),
+        room: normalizedCA,
         username: username,
         text: message,
         timestamp: Date.now(),
       }
 
+      console.log("Sending message:", messageData)
       socket.emit("message", messageData)
 
-      // Add message to local chat immediately for better UX
-      setChat((prev) => [
-        ...prev,
-        {
-          text: message,
-          username: username,
-          timestamp: Date.now(),
-        },
-      ])
+      // We'll let the server echo back the message instead of adding it locally
+      // This ensures consistency across all clients
 
       setMessage("")
       setTimeout(() => setSending(false), 300)
@@ -156,6 +204,11 @@ export default function ChatApp() {
               "Join a coin-specific chatroom"
             )}
           </CardDescription>
+          {connectionStatus !== "connected" && (
+            <div className="mt-2 text-xs bg-red-600 text-white p-1 rounded">
+              Socket status: {connectionStatus}. Try refreshing the page.
+            </div>
+          )}
         </CardHeader>
 
         {!joined ? (
@@ -184,7 +237,7 @@ export default function ChatApp() {
               <Button
                 onClick={joinRoom}
                 className="w-full bg-emerald-500 hover:bg-emerald-600"
-                disabled={connecting || coinAddress.trim() === ""}
+                disabled={connecting || coinAddress.trim() === "" || connectionStatus !== "connected"}
               >
                 <LogIn className="mr-2 h-4 w-4" />
                 {connecting ? "Connecting..." : "Join Chatroom"}
@@ -237,7 +290,7 @@ export default function ChatApp() {
                 <Button
                   onClick={sendMessage}
                   className="bg-emerald-500 hover:bg-emerald-600"
-                  disabled={sending || message.trim() === ""}
+                  disabled={sending || message.trim() === "" || connectionStatus !== "connected"}
                 >
                   <Send className="h-4 w-4" />
                 </Button>
