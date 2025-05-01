@@ -1,36 +1,52 @@
-const express = require('express');
-const http = require('http');
-const cors = require('cors');
-const { Server } = require('socket.io');
+// ---------------- core deps ----------------
+import express from 'express';
+import http from 'http';
+import { Server } from 'socket.io';
+import cors from 'cors';
+import { MongoClient, ObjectId } from 'mongodb';
 
-const app = express();
-app.use(cors());
+// ---------------- init ----------------
+const app   = express();
+const httpServer = http.createServer(app);
+const io    = new Server(httpServer, { cors: { origin: '*' }});
 
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: '*',
-    methods: ['GET', 'POST']
-  }
-});
+// ---------------- persistence ----------------
+const MONGO_URI = process.env.MONGO_URI ?? 'mongodb://127.0.0.1:27017';
+const DB_NAME   = 'loqui';
+const client    = new MongoClient(MONGO_URI);
+await client.connect();
+const db        = client.db(DB_NAME);
+const messages  = db.collection('messages');   // { _id, room, username, text, ts }
 
-io.on('connection', (socket) => {
-  console.log('User connected:', socket.id);
+// ---------------- helpers ----------------
+const validCA   = ca =>
+  /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(ca.trim());      // Solana base-58
 
-  socket.on('join', (room) => {
+// ---------------- socket logic ----------------
+io.on('connection', socket => {
+  socket.on('join', async ({ room }) => {
+    if (!validCA(room)) return socket.emit('error', 'Invalid contract address');
+
     socket.join(room);
-    console.log(`Socket ${socket.id} joined room ${room}`);
+
+    // send the last 100 msgs to this late-comer
+    const history = await messages
+      .find({ room })
+      .sort({ ts: -1 })
+      .limit(100)
+      .toArray();
+    socket.emit('chat-history', history.reverse());  // oldest->newest
   });
 
-  socket.on('message', ({ room, text }) => {
-    io.to(room).emit('message', text);
-  });
-
-  socket.on('disconnect', () => {
-    console.log('User disconnected:', socket.id);
+  socket.on('message', async ({ room, username, text }) => {
+    if (!text?.trim()) return;
+    const msgDoc = { room, username, text: text.trim(), ts: new Date() };
+    await messages.insertOne(msgDoc);     // persist
+    io.to(room).emit('message', msgDoc);  // broadcast
   });
 });
 
-server.listen(4000, () => {
-  console.log('Server is running on http://localhost:4000');
-});
+// ---------------- boot ----------------
+const PORT = process.env.PORT || 4000;
+httpServer.listen(PORT, () =>
+  console.log(`Loqui socket server live on :${PORT}`));
