@@ -2,41 +2,72 @@
 
 import type React from "react"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import io from "socket.io-client"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
-import { MessageCircle, Send, LogIn } from "lucide-react"
+import { MessageCircle, Send, LogIn, Users } from "lucide-react"
+import { generateRandomUsername } from "@/lib/username-utils"
 
 // Initialize socket connection
 const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:3000")
 
+// Define message type
+interface Message {
+  text: string
+  username: string
+  timestamp: number
+}
+
 export default function ChatApp() {
+  const [username, setUsername] = useState("")
   const [coinAddress, setCoinAddress] = useState("")
   const [joined, setJoined] = useState(false)
-  const [chat, setChat] = useState<string[]>([])
+  const [chat, setChat] = useState<Message[]>([])
   const [message, setMessage] = useState("")
   const [connecting, setConnecting] = useState(false)
   const [sending, setSending] = useState(false)
+  const [activeUsers, setActiveUsers] = useState<number>(0)
+  const scrollAreaRef = useRef<HTMLDivElement>(null)
 
-  // Listen for incoming messages
+  // Generate a random username on initial load
   useEffect(() => {
-    socket.on("message", (msg) => {
+    const randomUsername = generateRandomUsername()
+    setUsername(randomUsername)
+    console.log("Generated username:", randomUsername)
+  }, [])
+
+  // Listen for incoming messages and room events
+  useEffect(() => {
+    // Handle incoming messages
+    socket.on("message", (msg: Message) => {
       setChat((prev) => [...prev, msg])
+    })
+
+    // Handle room user count updates
+    socket.on("roomUserCount", (count: number) => {
+      setActiveUsers(count)
+    })
+
+    // Handle existing messages when joining a room
+    socket.on("roomHistory", (messages: Message[]) => {
+      setChat(messages)
     })
 
     return () => {
       socket.off("message")
+      socket.off("roomUserCount")
+      socket.off("roomHistory")
     }
   }, [])
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
-    const scrollArea = document.getElementById("message-container")
-    if (scrollArea) {
+    if (scrollAreaRef.current) {
+      const scrollArea = scrollAreaRef.current
       scrollArea.scrollTop = scrollArea.scrollHeight
     }
   }, [chat])
@@ -44,19 +75,47 @@ export default function ChatApp() {
   const joinRoom = () => {
     if (coinAddress.trim() !== "") {
       setConnecting(true)
-      socket.emit("join", coinAddress)
+
+      // Emit join event with username and room (CA)
+      socket.emit("join", {
+        room: coinAddress.toLowerCase().trim(), // Normalize CA to avoid duplicate rooms
+        username: username,
+      })
+
       setJoined(true)
+
+      // Clear chat until we receive room history
       setChat([])
-      setConnecting(false)
+
+      setTimeout(() => setConnecting(false), 500)
     }
   }
 
   const sendMessage = () => {
     if (message.trim() !== "") {
       setSending(true)
-      socket.emit("message", { room: coinAddress, text: message })
+
+      const messageData = {
+        room: coinAddress.toLowerCase().trim(),
+        username: username,
+        text: message,
+        timestamp: Date.now(),
+      }
+
+      socket.emit("message", messageData)
+
+      // Add message to local chat immediately for better UX
+      setChat((prev) => [
+        ...prev,
+        {
+          text: message,
+          username: username,
+          timestamp: Date.now(),
+        },
+      ])
+
       setMessage("")
-      setSending(false)
+      setTimeout(() => setSending(false), 300)
     }
   }
 
@@ -70,6 +129,12 @@ export default function ChatApp() {
     }
   }
 
+  // Format timestamp for display
+  const formatTime = (timestamp: number) => {
+    const date = new Date(timestamp)
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+  }
+
   return (
     <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-emerald-50 to-white p-4">
       <Card className="w-full max-w-md shadow-lg">
@@ -79,13 +144,30 @@ export default function ChatApp() {
             <CardTitle>Crypto Chat</CardTitle>
           </div>
           <CardDescription className="text-emerald-50">
-            {joined ? `Connected to ${coinAddress}` : "Join a coin-specific chatroom"}
+            {joined ? (
+              <div className="flex justify-between items-center">
+                <span>Connected to {coinAddress}</span>
+                <div className="flex items-center gap-1">
+                  <Users className="h-4 w-4" />
+                  <span>{activeUsers} online</span>
+                </div>
+              </div>
+            ) : (
+              "Join a coin-specific chatroom"
+            )}
           </CardDescription>
         </CardHeader>
 
         {!joined ? (
           <CardContent className="p-6">
             <div className="space-y-4">
+              <div className="space-y-2">
+                <label htmlFor="username" className="text-sm font-medium">
+                  Your Username
+                </label>
+                <Input id="username" value={username} readOnly className="focus-visible:ring-emerald-500 bg-gray-50" />
+                <p className="text-xs text-gray-500">This is your randomly generated username for this session</p>
+              </div>
               <div className="space-y-2">
                 <label htmlFor="coin-address" className="text-sm font-medium">
                   Coin Address
@@ -112,7 +194,12 @@ export default function ChatApp() {
         ) : (
           <>
             <CardContent className="p-0">
-              <ScrollArea id="message-container" className="h-[350px] p-4">
+              <div className="p-3 bg-emerald-50 border-b border-emerald-100">
+                <p className="text-sm text-emerald-800">
+                  Your username: <span className="font-mono font-medium">{username}</span>
+                </p>
+              </div>
+              <ScrollArea className="h-[350px] p-4" ref={scrollAreaRef}>
                 {chat.length === 0 ? (
                   <div className="flex items-center justify-center h-full text-gray-400">
                     No messages yet. Start the conversation!
@@ -120,8 +207,17 @@ export default function ChatApp() {
                 ) : (
                   <div className="space-y-3">
                     {chat.map((msg, i) => (
-                      <div key={i} className="p-3 bg-gray-100 rounded-lg">
-                        {msg}
+                      <div
+                        key={i}
+                        className={`p-3 rounded-lg ${
+                          msg.username === username ? "bg-emerald-100 ml-12" : "bg-gray-100 mr-12"
+                        }`}
+                      >
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="font-mono text-xs text-gray-500">{msg.username}</span>
+                          {msg.timestamp && <span className="text-xs text-gray-500">{formatTime(msg.timestamp)}</span>}
+                        </div>
+                        <p>{msg.text}</p>
                       </div>
                     ))}
                   </div>
